@@ -1,0 +1,4 @@
+quart
+hypercorn
+discord.py
+aiohttp

@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Discord 机器人控制台 V2</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f0f2f5; padding-top: 20px; padding-bottom: 50px;}
+        .card { margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); border: none; }
+        .card-header { font-weight: bold; }
+        textarea { font-family: monospace; font-size: 0.9rem; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1 class="mb-4 text-center">🤖 超级机器人后台</h1>
+
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header bg-warning text-dark">🧠 AI 大脑设定</div>
+                <div class="card-body">
+                    <form action="/save_ai_settings" method="POST">
+                        <div class="mb-3">
+                            <label class="form-label">🤖 系统提示词 (System Prompt)</label>
+                            <textarea class="form-control" name="system_prompt" rows="12" placeholder="你可以在这里输入很长的人设..." required>{{ config.system_prompt }}</textarea>
+                            <div class="form-text">这里定义机器人的基本性格、说话方式和规则。</div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">🌡️ 温度 (Temperature): <span id="tempVal">{{ config.temperature }}</span></label>
+                            <input type="range" class="form-range" name="temperature" min="0" max="2" step="0.1" value="{{ config.temperature }}" oninput="document.getElementById('tempVal').innerText = this.value">
+                            <div class="form-text">0.0 = 理性严谨, 1.0 = 创意发散, 2.0 = 胡言乱语</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">📚 当前全局知识库 (通过 /知识输入 添加)</label>
+                            <div class="p-2 bg-light border rounded" style="max-height: 150px; overflow-y: auto;">
+                                {% if config.global_knowledge %}
+                                    <ul class="mb-0 ps-3">
+                                    {% for k in config.global_knowledge %}
+                                        <li>{{ k }}</li>
+                                    {% endfor %}
+                                    </ul>
+                                {% else %}
+                                    <span class="text-muted">暂无知识，去 Discord 用 /知识输入 添加</span>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <button type="submit" class="btn btn-warning w-100">保存 AI 设定</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-primary text-white">机器人实例</div>
+                <div class="card-body">
+                    <table class="table table-sm align-middle">
+                        <thead><tr><th>Bot</th><th>状态</th><th>操作</th></tr></thead>
+                        <tbody>
+                            {% for bot in bots %}
+                            <tr>
+                                <td>{{ bot.user }}<br><small class="text-muted">{{ bot.token_mask }}</small></td>
+                                <td>{{ bot.status }}</td>
+                                <td>
+                                    <form action="/manage_bot" method="POST" class="d-inline">
+                                        <input type="hidden" name="token" value="{{ bot.full_token }}">
+                                        <button name="action" value="stop" class="btn btn-sm btn-outline-danger">停</button>
+                                        <button name="action" value="start" class="btn btn-sm btn-outline-success">启</button>
+                                        <button name="action" value="delete" class="btn btn-sm btn-link text-danger">删</button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    <form action="/manage_bot" method="POST" class="input-group">
+                        <input type="text" class="form-control" name="new_token" placeholder="Bot Token" required>
+                        <button class="btn btn-primary" name="action" value="add">添加</button>
+                    </form>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header bg-success text-white">API 连接</div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <button id="testBtn" class="btn btn-sm btn-outline-success w-100">🛠 测试连接</button>
+                        <small id="testResult" class="d-block mt-1 text-center"></small>
+                    </div>
+                    <hr>
+                    <form action="/update_api" method="POST">
+                        <input type="text" class="form-control mb-2" name="url" placeholder="URL (e.g. https://open.ai/v1)" required>
+                        <input type="text" class="form-control mb-2" name="model" value="gpt-3.5-turbo" placeholder="Model Name">
+                        <textarea class="form-control mb-2" name="keys" rows="2" placeholder="Keys (每行一个)" required></textarea>
+                        <button type="submit" class="btn btn-success btn-sm w-100">添加 API 组</button>
+                    </form>
+                </div>
+            </div>
+
+             <div class="card">
+                <div class="card-header bg-dark text-white">后台喊话</div>
+                <div class="card-body">
+                    <form action="/admin_say" method="POST">
+                        <select class="form-select mb-2" name="bot_token_mask">
+                            {% for bot in bots %}
+                            <option value="{{ bot.token_mask }}">{{ bot.user }}</option>
+                            {% endfor %}
+                        </select>
+                        <input type="number" class="form-control mb-2" name="channel_id" placeholder="Channel ID" required>
+                        <textarea class="form-control mb-2" name="message" rows="2" required></textarea>
+                        <button type="submit" class="btn btn-dark btn-sm w-100">发送</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.getElementById('testBtn').addEventListener('click', async () => {
+        const span = document.getElementById('testResult');
+        span.innerText = "测试中...";
+        try {
+            const req = await fetch('/test_api', {method: 'POST'});
+            const data = await req.json();
+            span.innerText = data.response;
+        } catch (e) { span.innerText = "Error: " + e; }
+    });
+</script>
+</body>
+</html>
