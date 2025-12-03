@@ -13,9 +13,10 @@ from .discord_ui import ShopCategoryView, CardModal, EventDefineModal, DuelInvit
 active_bots = {}
 
 class MyBot(commands.Bot):
-    def __init__(self, token_key):
+    def __init__(self, token_key, enabled_modules=None):
         super().__init__(command_prefix='!', intents=discord.Intents.all(), help_command=None)
         self.token_key = token_key 
+        self.enabled_modules = enabled_modules or ["chat", "rpg", "admin", "utility"]
 
     async def setup_hook(self):
         await self.tree.sync()
@@ -159,23 +160,30 @@ class MyBot(commands.Bot):
         embed.color = 0xffd700
         await msg.edit(embed=embed)
 
-        combat_log_str = "\n".join(log_history)
-        prompt = (
-            f"请以热血解说员的身份总结这场战斗。\n"
-            f"对阵：{p1.display_name} vs {p2.display_name}\n"
-            f"战斗过程记录：\n{combat_log_str}\n"
-            f"最终结果：{result_text}\n"
-            f"请特别点评其中的【暴击】或【大失败】镜头。"
-        )
-        commentary = await ask_ai(prompt, self.token_key, pure_reply=True)
-        await interaction.channel.send(f"🎙️ **赛后点评:**\n{commentary}")
+        if "chat" in self.enabled_modules:
+            combat_log_str = "\n".join(log_history)
+            prompt = (
+                f"请以热血解说员的身份总结这场战斗。\n"
+                f"对阵：{p1.display_name} vs {p2.display_name}\n"
+                f"战斗过程记录：\n{combat_log_str}\n"
+                f"最终结果：{result_text}\n"
+                f"请特别点评其中的【暴击】或【大失败】镜头。"
+            )
+            commentary = await ask_ai(prompt, self.token_key, pure_reply=True)
+            await interaction.channel.send(f"🎙️ **赛后点评:**\n{commentary}")
 
     async def on_message(self, message):
         if message.author.bot: return
 
+        if "chat" not in self.enabled_modules:
+            if message.content == "!sync" and message.author.guild_permissions.administrator:
+                pass
+            else:
+                return
+
         if message.content == "!sync" and message.author.guild_permissions.administrator:
             await self.tree.sync()
-            await message.reply("✅ 指令树已同步。")
+            await message.reply(f"✅ 指令树已同步。当前启用模块: {self.enabled_modules}")
             return
 
         is_mentioned = self.user in message.mentions
@@ -215,54 +223,10 @@ class MyBot(commands.Bot):
                 elif final_reply:
                     await message.reply(final_reply)
 
-def register_commands(bot):
-    
-    # --- 新增：管理员修改好感度 ---
-    @bot.tree.command(name="修改好感度", description="[管理] 修改指定用户的好感度")
-    @app_commands.checks.has_permissions(administrator=True)
-    @app_commands.describe(target="目标用户", value="数值", mode="模式: add(增加)/set(设定)")
-    @app_commands.choices(mode=[
-        app_commands.Choice(name="➕ 增加/减少 (Add)", value="add"),
-        app_commands.Choice(name="🎯 设定为 (Set)", value="set")
-    ])
-    async def modify_fav(interaction: discord.Interaction, target: discord.User, value: int, mode: str = "add"):
-        await interaction.response.defer(ephemeral=True)
-        user_data = load_user_data()
-        uid = str(target.id)
-        if uid not in user_data: 
-             user_data[uid] = {"gold":0, "rpg":{"lv":1,"hp":100}, "favorability":0, "equip":{"weapon":"无","armor":"无"}}
 
-        old_fav = user_data[uid].get("favorability", 0)
-        
-        if mode == "add":
-            new_fav = old_fav + value
-        else:
-            new_fav = value
-            
-        # 限制范围，防止数值溢出
-        new_fav = max(-500, min(500, new_fav))
-        user_data[uid]["favorability"] = new_fav
-        save_user_data(user_data)
-        
-        op_char = "+" if (mode=="add" and value>0) else ""
-        await interaction.followup.send(f"✅ 已修改 {target.mention} 的好感度。\n📊 变动: {old_fav} -> **{new_fav}**", ephemeral=True)
+# --- 模块化指令注册函数 ---
 
-    # --- 新增：管理员清除名片 ---
-    @bot.tree.command(name="清除名片", description="[管理] 强制清除/重置用户的名片")
-    @app_commands.checks.has_permissions(administrator=True)
-    async def clear_card(interaction: discord.Interaction, target: discord.User):
-        await interaction.response.defer(ephemeral=True)
-        user_data = load_user_data()
-        uid = str(target.id)
-        
-        if uid in user_data:
-            old_card = user_data[uid].get("card", "无")
-            user_data[uid]["card"] = "" 
-            save_user_data(user_data)
-            await interaction.followup.send(f"✅ 已清除 {target.mention} 的名片。\n🗑️ 原内容: {old_card[:50]}...", ephemeral=True)
-        else:
-            await interaction.followup.send(f"❌ 找不到 {target.mention} 的数据。", ephemeral=True)
-
+def register_rpg_commands(bot):
     @bot.tree.command(name="决斗", description="发起决斗 (赌钱/赌命)")
     async def duel(interaction: discord.Interaction, target: discord.User):
         if target.bot or target.id == interaction.user.id:
@@ -272,17 +236,13 @@ def register_commands(bot):
         view = DuelInviteView(bot, interaction.user, target)
         await interaction.response.send_message(content=target.mention, embed=embed, view=view)
 
-    @bot.tree.command(name="商店", description="装备/礼物/情书")
+    @bot.tree.command(name="商店", description="装备/礼物/情书/药水")
     async def shop(interaction: discord.Interaction):
         embed = discord.Embed(title="🏰 皇家交易所", description="请选择商品分类：", color=0xffd700)
         user_data = load_user_data()
         gold = user_data.get(str(interaction.user.id), {}).get("gold", 0)
         embed.set_footer(text=f"金币: {gold} G")
         await interaction.response.send_message(embed=embed, view=ShopCategoryView(bot.token_key), ephemeral=True)
-
-    @bot.tree.command(name="名片", description="设置人设")
-    async def set_card_cmd(interaction: discord.Interaction):
-        await interaction.response.send_modal(CardModal(bot.token_key))
 
     @bot.tree.command(name="自定义探索", description="创建探索事件")
     async def define_event(interaction: discord.Interaction):
@@ -327,7 +287,7 @@ def register_commands(bot):
             raw_dmg = random.randint(10, 20)
             hp_change = -max(1, raw_dmg - defense)
             result_desc = "情况不妙，你受了些伤，只好空手而归。"
-        elif status_key == "FUMBLES":
+        elif status_key == "FUMBLE":
             gold_change = -random.randint(10, 30)
             raw_dmg = random.randint(30, 50)
             hp_change = -max(5, raw_dmg - defense)
@@ -337,20 +297,27 @@ def register_commands(bot):
         current_hp = user_data[uid].get("rpg", {}).get("hp", 100)
         user_data[uid]["rpg"]["hp"] = current_hp + hp_change
         save_user_data(user_data)
-
-        prompt = (
-            f"RPG探索模式（跑团风格）。\n"
-            f"事件：{event_text}\n"
-            f"【检定结果】：🎲D100 = {roll_val} -> 【{status_text}】\n"
-            f"系统判定后果：{result_desc}\n"
-            f"实际数值变动：金币 {gold_change:+}, HP {hp_change:+} (当前HP: {user_data[uid]['rpg']['hp']})\n"
-            f"请根据【{status_text}】这个检定结果，用生动、夸张的语气描写这段冒险经历。"
-            f"如果是大成功，请把主角描写得英勇无比；如果是大失败，请描写得狼狈不堪。"
-        )
         
-        story = await ask_ai(prompt, bot.token_key, interaction.user.display_name, pure_reply=True)
+        if "chat" in bot.enabled_modules:
+            # --- 视角修正：强制 DM 第二人称视角 ---
+            prompt = (
+                f"【指令】：你现在是TRPG跑团游戏的DM（地下城主）。\n"
+                f"【玩家】：{interaction.user.display_name}\n"
+                f"【遭遇事件】：{event_text}\n"
+                f"【检定结果】：🎲D100 = {roll_val} -> 【{status_text}】\n"
+                f"【后果】：{result_desc}\n"
+                f"【数值变动】：金币 {gold_change:+}, HP {hp_change:+} (当前HP: {user_data[uid]['rpg']['hp']})\n\n"
+                f"请根据检定结果，用生动、有画面感的文字描述玩家经历了什么。\n"
+                f"⚠️ 严格要求：\n"
+                f"1. 必须使用第二人称“你”（例如：你挥舞着剑...，你跌跌撞撞地...）。\n"
+                f"2. 绝对不要出现“作为AI”、“好的”、“根据结果”等出戏的语言，直接开始描写。\n"
+                f"3. 如果是大成功，描写得帅气/幸运；如果是大失败，描写得狼狈/倒霉。"
+            )
+            story = await ask_ai(prompt, bot.token_key, interaction.user.display_name, pure_reply=True)
+        else:
+            story = f"{event_text}\n结果: {result_desc}"
         
-        color_map = {"CRITICAL": 0xffd700, "SUCCESS": 0x00ff00, "FAIL": 0xff9900, "FUMBLES": 0xff0000}
+        color_map = {"CRITICAL": 0xffd700, "SUCCESS": 0x00ff00, "FAIL": 0xff9900, "FUMBLE": 0xff0000}
         
         embed = discord.Embed(title=f"🎲 探索检定: {status_text}", description=story, color=color_map.get(status_key, 0x95a5a6))
         embed.add_field(name="检定详情", value=f"D100 = **{roll_val}**", inline=True)
@@ -365,9 +332,11 @@ def register_commands(bot):
         uid = str(interaction.user.id)
         u = user_data.get(uid, {"gold":0, "favorability":0, "rpg":{"lv":1,"hp":100}, "equip":{"weapon":"无","armor":"无"}})
         
-        fav_stage = get_favorability_stage(u.get('favorability', 0))
-        prompt = f"请评价面前的玩家。关系: {fav_stage['title']}。装备: {u['equip']}。请用第二人称。"
-        comment = await ask_ai(prompt, bot.token_key, interaction.user.display_name, user_id=interaction.user.id, current_fav=u.get('favorability', 0), pure_reply=True)
+        comment = "..."
+        if "chat" in bot.enabled_modules:
+            fav_stage = get_favorability_stage(u.get('favorability', 0))
+            prompt = f"请评价面前的玩家。关系: {fav_stage['title']}。装备: {u['equip']}。请用第二人称。"
+            comment = await ask_ai(prompt, bot.token_key, interaction.user.display_name, user_id=interaction.user.id, current_fav=u.get('favorability', 0), pure_reply=True)
         
         embed = discord.Embed(title=f"📜 {interaction.user.display_name}", color=0x9b59b6)
         embed.set_thumbnail(url=interaction.user.display_avatar.url)
@@ -379,6 +348,61 @@ def register_commands(bot):
         embed.add_field(name="⚔️ 装备", value=f"🗡️ {u['equip'].get('weapon')}\n🛡️ {u['equip'].get('armor')}", inline=False)
         
         await interaction.followup.send(embed=embed)
+
+def register_admin_commands(bot):
+    @bot.tree.command(name="修改好感度", description="[管理] 修改指定用户的好感度")
+    @app_commands.checks.has_permissions(administrator=True)
+    @app_commands.describe(target="目标用户", value="数值", mode="模式: add(增加)/set(设定)")
+    @app_commands.choices(mode=[
+        app_commands.Choice(name="➕ 增加/减少 (Add)", value="add"),
+        app_commands.Choice(name="🎯 设定为 (Set)", value="set")
+    ])
+    async def modify_fav(interaction: discord.Interaction, target: discord.User, value: int, mode: str = "add"):
+        await interaction.response.defer(ephemeral=True)
+        user_data = load_user_data()
+        uid = str(target.id)
+        if uid not in user_data: 
+             user_data[uid] = {"gold":0, "rpg":{"lv":1,"hp":100}, "favorability":0, "equip":{"weapon":"无","armor":"无"}}
+
+        old_fav = user_data[uid].get("favorability", 0)
+        
+        if mode == "add":
+            new_fav = old_fav + value
+        else:
+            new_fav = value
+            
+        new_fav = max(-500, min(500, new_fav))
+        user_data[uid]["favorability"] = new_fav
+        save_user_data(user_data)
+        
+        await interaction.followup.send(f"✅ 已修改 {target.mention} 的好感度。\n📊 变动: {old_fav} -> **{new_fav}**", ephemeral=True)
+
+    @bot.tree.command(name="清除名片", description="[管理] 强制清除/重置用户的名片")
+    @app_commands.checks.has_permissions(administrator=True)
+    async def clear_card(interaction: discord.Interaction, target: discord.User):
+        await interaction.response.defer(ephemeral=True)
+        user_data = load_user_data()
+        uid = str(target.id)
+        
+        if uid in user_data:
+            old_card = user_data[uid].get("card", "无")
+            user_data[uid]["card"] = "" 
+            save_user_data(user_data)
+            await interaction.followup.send(f"✅ 已清除 {target.mention} 的名片。\n🗑️ 原内容: {old_card[:50]}...", ephemeral=True)
+        else:
+            await interaction.followup.send(f"❌ 找不到 {target.mention} 的数据。", ephemeral=True)
+    
+    @bot.tree.command(name="清理", description="清理消息")
+    @app_commands.checks.has_permissions(administrator=True)
+    async def purge(interaction: discord.Interaction, count: int):
+        await interaction.response.defer(ephemeral=True)
+        deleted = await interaction.channel.purge(limit=count)
+        await interaction.followup.send(f"🧹 已清理 {len(deleted)} 条", ephemeral=True)
+
+def register_utility_commands(bot):
+    @bot.tree.command(name="名片", description="设置人设")
+    async def set_card_cmd(interaction: discord.Interaction):
+        await interaction.response.send_modal(CardModal(bot.token_key))
 
     @bot.tree.command(name="提醒", description="设置提醒")
     async def remind(interaction: discord.Interaction, time_str: str, matter: str):
@@ -394,22 +418,18 @@ def register_commands(bot):
 
     @bot.tree.command(name="总结", description="智能总结/提问 (自动读取上下文)")
     async def summarize(interaction: discord.Interaction, instruction: str = None):
-        """
-        instruction: 用户的具体指令，例如“他们聊了什么”、“谁是卧底”等。
-        如果不填，默认进行通用总结。
-        """
+        if "chat" not in bot.enabled_modules:
+             return await interaction.response.send_message("❌ 聊天模块已禁用，无法使用智能总结。", ephemeral=True)
+
         await interaction.response.defer()
-        
-        # 自动读取最近 50 条作为上下文
         hist = [f"{m.author.display_name}: {m.content}" async for m in interaction.channel.history(limit=50)]
         text = "\n".join(reversed(hist))
         
         user_query = instruction if instruction else "请总结刚才发生了什么，大家的讨论重点和情绪如何？"
-        
         prompt = (
             f"以下是 Discord 频道的最近聊天记录（上下文）：\n\n{text}\n\n"
             f"用户指令/问题：{user_query}\n"
-            f"请根据聊天记录执行用户的指令。如果用户是在提问，请基于聊天记录回答。"
+            f"请根据聊天记录执行用户的指令。"
         )
         res = await ask_ai(prompt, bot.token_key, pure_reply=True)
         
@@ -417,18 +437,21 @@ def register_commands(bot):
         embed.set_footer(text=f"基于最近 50 条消息 | 指令: {user_query}")
         await interaction.followup.send(embed=embed)
 
-    @bot.tree.command(name="清理", description="清理消息")
-    @app_commands.checks.has_permissions(administrator=True)
-    async def purge(interaction: discord.Interaction, count: int):
-        await interaction.response.defer(ephemeral=True)
-        deleted = await interaction.channel.purge(limit=count)
-        await interaction.followup.send(f"🧹 已清理 {len(deleted)} 条", ephemeral=True)
-
 async def start_bot(token):
     if token in active_bots: return
     try:
-        bot = MyBot(token)
-        register_commands(bot)
+        config = load_config()
+        bot_conf = config["bot_settings"].get(token, config["default_settings"])
+        modules = bot_conf.get("enabled_modules", ["chat", "rpg", "admin", "utility"])
+        
+        print(f"🤖 Starting Bot [{token[:6]}...] with modules: {modules}")
+        
+        bot = MyBot(token, enabled_modules=modules)
+        
+        if "rpg" in modules: register_rpg_commands(bot)
+        if "admin" in modules: register_admin_commands(bot)
+        if "utility" in modules: register_utility_commands(bot)
+        
         task = asyncio.create_task(bot.start(token))
         active_bots[token] = {"bot": bot, "task": task}
         await task

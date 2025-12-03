@@ -14,7 +14,8 @@ default_config = {
         "system_prompts": ["你是一个非常有用的 Discord 助手。"],
         "temperature": 0.8,
         "knowledge": [],
-        "custom_events": []
+        "custom_events": [],
+        "enabled_modules": ["chat", "rpg", "admin", "utility"] # 默认开启所有模块
     },
     "bot_settings": {}
 }
@@ -30,7 +31,13 @@ def load_config():
             config = json.load(f)
             if "bot_settings" not in config: config["bot_settings"] = {}
             if "default_settings" not in config: config["default_settings"] = default_config["default_settings"]
-            if "custom_events" not in config["default_settings"]: config["default_settings"]["custom_events"] = []
+            
+            # 确保关键字段存在
+            if "custom_events" not in config["default_settings"]: 
+                config["default_settings"]["custom_events"] = []
+            if "enabled_modules" not in config["default_settings"]:
+                config["default_settings"]["enabled_modules"] = ["chat", "rpg", "admin", "utility"]
+                
             return config
     except: return default_config
 

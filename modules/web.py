@@ -59,13 +59,22 @@ async def save_bot_settings():
     form = await request.form
     target_token = form.get('target_token')
     config = load_config()
+    
     prompts = [form.get(k).strip() for k in form if k.startswith('system_prompt_') and form.get(k).strip()]
     
+    # 获取模块开关状态
+    enabled_modules = []
+    if form.get('module_chat') == 'on': enabled_modules.append('chat')
+    if form.get('module_rpg') == 'on': enabled_modules.append('rpg')
+    if form.get('module_admin') == 'on': enabled_modules.append('admin')
+    if form.get('module_utility') == 'on': enabled_modules.append('utility')
+
     new_settings = {
         "system_prompts": prompts,
         "temperature": float(form.get('temperature', 0.7)),
         "knowledge": [],
-        "custom_events": []
+        "custom_events": [],
+        "enabled_modules": enabled_modules
     }
     
     old_conf = config['bot_settings'].get(target_token, config['default_settings']) if target_token != 'default' else config['default_settings']

@@ -328,16 +328,59 @@
                                         </button>
                                     </div>
 
+                                    <div class="mb-4">
+                                        <label class="form-label fw-bold text-white small">🛠️ 功能模块 (Modules)</label>
+                                        <div class="bg-dark p-3 rounded border border-secondary">
+                                            <div class="row g-3">
+                                                <div class="col-6">
+                                                    <div class="form-check form-switch">
+                                                        <input class="form-check-input" type="checkbox" name="module_chat" id="mod_chat" {% if 'chat' in config.enabled_modules %}checked{% endif %}>
+                                                        <label class="form-check-label fw-bold" for="mod_chat">💬 智能聊天 (LLM)</label>
+                                                    </div>
+                                                    <small class="text-muted d-block ms-4" style="font-size: 0.8em;">
+                                                        包含: 自动回复, 上下文记忆
+                                                    </small>
+                                                </div>
+                                                <div class="col-6">
+                                                    <div class="form-check form-switch">
+                                                        <input class="form-check-input" type="checkbox" name="module_rpg" id="mod_rpg" {% if 'rpg' in config.enabled_modules %}checked{% endif %}>
+                                                        <label class="form-check-label fw-bold" for="mod_rpg">⚔️ RPG / 游戏系统</label>
+                                                    </div>
+                                                    <small class="text-muted d-block ms-4" style="font-size: 0.8em;">
+                                                        包含: /商店, /决斗, /探索, /自定义探索, /我的数据
+                                                    </small>
+                                                </div>
+                                                <div class="col-6">
+                                                    <div class="form-check form-switch">
+                                                        <input class="form-check-input" type="checkbox" name="module_admin" id="mod_admin" {% if 'admin' in config.enabled_modules %}checked{% endif %}>
+                                                        <label class="form-check-label fw-bold" for="mod_admin">🛡️ 管理员指令</label>
+                                                    </div>
+                                                    <small class="text-muted d-block ms-4" style="font-size: 0.8em;">
+                                                        包含: /修改好感度, /清除名片, /清理
+                                                    </small>
+                                                </div>
+                                                <div class="col-6">
+                                                    <div class="form-check form-switch">
+                                                        <input class="form-check-input" type="checkbox" name="module_utility" id="mod_util" {% if 'utility' in config.enabled_modules %}checked{% endif %}>
+                                                        <label class="form-check-label fw-bold" for="mod_util">🔧 实用工具</label>
+                                                    </div>
+                                                    <small class="text-muted d-block ms-4" style="font-size: 0.8em;">
+                                                        包含: /名片, /提醒, /总结
+                                                    </small>
+                                                </div>
+                                            </div>
+                                            <div class="text-muted small mt-3 pt-2 border-top border-secondary">
+                                                <i class="bi bi-info-circle"></i> 保存后，请在“运行概览”中 <b>停止并重新启动</b> 对应的 Bot 才能生效。
+                                            </div>
+                                        </div>
+                                    </div>
+
                                     <div class="mb-3">
                                         <label class="form-label d-flex justify-content-between">
                                             <span>🔥 创造力 (Temperature)</span>
                                             <span class="badge bg-warning text-dark">{{ config.temperature }}</span>
                                         </label>
                                         <input type="range" class="form-range" name="temperature" min="0" max="2" step="0.1" value="{{ config.temperature }}">
-                                        <div class="d-flex justify-content-between small text-muted">
-                                            <span>严谨 (0.0)</span>
-                                            <span>疯狂 (2.0)</span>
-                                        </div>
                                     </div>
                                     
                                     <button type="submit" class="btn btn-warning w-100 fw-bold text-dark mt-2">保存设定</button>
@@ -461,7 +504,6 @@
 
             <div class="tab-pane fade" id="content-api">
                 <h3 class="text-white mb-4">API 连接池 (全局共享)</h3>
-                
                 <div class="row">
                     <div class="col-lg-8">
                         {% for api in apis %}

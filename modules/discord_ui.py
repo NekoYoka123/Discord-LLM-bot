@@ -31,9 +31,6 @@ class DuelBetView(ui.View):
     async def start_duel(self, interaction):
         for child in self.children: child.disabled = True
         await interaction.response.edit_message(content=f"⚔️ **决斗模式已确认：{self.children[0].label if self.mode=='money' else self.children[1].label}**\n战斗即将开始...", view=self)
-        # 调用 Bot 中的战斗逻辑，这里需要引用外部的 combat_engine，为了解耦，我们在 main_bot 里处理，这里只做 UI 响应
-        # 实际逻辑会在 discord_bot.py 中通过 wait_for 或 callback 处理，或者我们在此处直接调用 bot 的公共方法
-        # 为了简单，我们假定 discord_bot.py 会处理这个 View 的后续，或者我们在 View 里调用 bot.start_combat
         if hasattr(self.bot, 'start_combat_engine'):
             await self.bot.start_combat_engine(interaction, self.challenger, self.target, self.mode)
 
@@ -76,7 +73,6 @@ class LoveLetterModal(ui.Modal, title="💌 书写情书"):
         uid = str(interaction.user.id)
         if uid not in user_data: user_data[uid] = {"gold":0, "favorability":0, "equip":{}}
         
-        # 再次检查金币（防止手快）
         if user_data[uid]["gold"] < self.cost:
             return await interaction.response.send_message("💸 你的钱不够了...", ephemeral=True)
 
@@ -117,11 +113,12 @@ class ShopItemSelect(ui.Select):
         for name, data in items.items():
             cost = data['cost']
             desc = data['desc'][:50]
-            if category == 'gifts':
-                desc = f"[好感+{data['fav']}] {desc}"
-            # 补充防御力说明
-            if category == 'armors' and 'def' in data:
-                desc = f"[DEF+{data['def']}] {desc}"
+            
+            # 根据类别生成不同的描述前缀
+            if category == 'gifts': desc = f"[好感+{data['fav']}] {desc}"
+            elif category == 'armors' and 'def' in data: desc = f"[DEF+{data['def']}] {desc}"
+            elif category == 'potions': desc = f"[HP+{data['hp_rec']}] {desc}"
+            
             label = f"{name} ({cost}G)"
             options.append(discord.SelectOption(label=label, description=desc, value=name))
         super().__init__(placeholder=f"选择要购买的{category}...", min_values=1, max_values=1, options=options)
@@ -137,7 +134,6 @@ class ShopItemSelect(ui.Select):
              uid = str(interaction.user.id)
              gold = user_data.get(uid, {}).get("gold", 0)
              if gold < cost: return await interaction.response.send_message(f"💸 余额不足！需要 {cost}G。", ephemeral=True)
-             # 弹出 Modal，不直接扣费
              return await interaction.response.send_modal(LoveLetterModal(self.bot_token, item_name, cost))
 
         user_data = load_user_data()
@@ -148,27 +144,58 @@ class ShopItemSelect(ui.Select):
         if u["gold"] < cost:
             return await interaction.response.send_message(f"💸 余额不足！", ephemeral=True)
         
-        u["gold"] -= cost
         msg = ""
         ai_prompt = ""
         action_type = "normal_chat"
-
         fav_stage = get_favorability_stage(u.get("favorability", 0))
-        
-        if self.category == "weapons":
+
+        # --- 购买逻辑分发 ---
+        if self.category == "potions":
+            # 回复类：直接加血
+            hp_rec = item_data['hp_rec']
+            current_hp = u.get("rpg", {}).get("hp", 100)
+            
+            # 简单假设上限是 100 + 装备加成，这里为了简单只判断基础上限100
+            # 或者直接允许溢出一点点也行，这里做个简单限制
+            if current_hp >= 500: # 假设绝对上限
+                return await interaction.response.send_message("❌ 你的状态已经很好了，喝不下了！", ephemeral=True)
+            
+            u["gold"] -= cost
+            u["rpg"]["hp"] = current_hp + hp_rec
+            msg = f"🧪 咕嘟咕嘟... 你喝下了 **{item_name}**！ (HP +{hp_rec} -> {u['rpg']['hp']})"
+            ai_prompt = f"用户在你面前喝下了{item_name}，气色变好了。请评价一句。"
+
+        elif self.category == "tools":
+            # 功能类
+            if item_name == "赎罪券":
+                current_fav = u.get("favorability", 0)
+                if current_fav >= 0:
+                     return await interaction.response.send_message("❌ 你和Bot并没有仇恨，不需要赎罪。", ephemeral=True)
+                u["gold"] -= cost
+                u["favorability"] = 0
+                msg = f"📜 你使用了 **赎罪券**。神圣的光芒照耀下，过去的恩怨一笔勾销。(好感度重置为 0)"
+                ai_prompt = f"用户使用了赎罪券，消除了你对他的所有仇恨（原本好感度{current_fav}）。你感觉突然释怀了，请表现出这种态度的转变。"
+            else:
+                 # 其他道具暂未实现
+                 return await interaction.response.send_message("❌ 该道具暂未实装效果。", ephemeral=True)
+
+        elif self.category == "weapons":
+            u["gold"] -= cost
             u["equip"]["weapon"] = item_name
-            # 更新数值
             u.setdefault("rpg", {})["atk"] = 10 + item_data['atk']
             msg = f"✅ 购买并装备了 **{item_name}**！(ATK {u['rpg']['atk']})"
             ai_prompt = f"用户在你这里买了一把{item_name}。当前好感度阶段：{fav_stage['title']}。请评价他的眼光。"
+
         elif self.category == "armors":
+            u["gold"] -= cost
             u["equip"]["armor"] = item_name
-            # 更新 HP 和 Def (记录在 RPG 数据里)
-            u.setdefault("rpg", {})["hp"] = 100 + item_data['hp'] # 基础100 + 装备
+            u.setdefault("rpg", {})["hp"] = 100 + item_data['hp'] 
             u["rpg"]["def"] = item_data.get('def', 0)
             msg = f"✅ 购买并穿戴了 **{item_name}**！(HP {u['rpg']['hp']} | DEF {u['rpg']['def']})"
             ai_prompt = f"用户换上了{item_name}。当前好感度阶段：{fav_stage['title']}。请评价他的新造型。"
+
         elif self.category == "gifts":
+            u["gold"] -= cost
             fav_add = item_data['fav']
             u["favorability"] = u.get("favorability", 0) + fav_add
             msg = f"🎁 送出了 **{item_name}**！ (好感度 +{fav_add})"
@@ -181,6 +208,7 @@ class ShopItemSelect(ui.Select):
         
         save_user_data(user_data)
         
+        # 统一调用 AI 回复
         reply = await ask_ai(
             ai_prompt, 
             self.bot_token, 
@@ -210,15 +238,25 @@ class ShopCategoryView(ui.View):
         view.add_item(ShopItemSelect("armors", self.bot_token))
         await interaction.response.send_message("👕 **请选择防具/服装：**", view=view, ephemeral=True)
 
+    @ui.button(label="💊 炼金药房", style=discord.ButtonStyle.success)
+    async def show_potions(self, interaction: discord.Interaction, button: ui.Button):
+        view = ui.View()
+        view.add_item(ShopItemSelect("potions", self.bot_token))
+        await interaction.response.send_message("🧪 **来点什么药水？**", view=view, ephemeral=True)
+
+    @ui.button(label="🔮 奇物店", style=discord.ButtonStyle.secondary)
+    async def show_tools(self, interaction: discord.Interaction, button: ui.Button):
+        view = ui.View()
+        view.add_item(ShopItemSelect("tools", self.bot_token))
+        await interaction.response.send_message("🔮 **这里出售一些不可思议的道具...**", view=view, ephemeral=True)
+
     @ui.button(label="🎁 礼物区", style=discord.ButtonStyle.danger)
     async def show_gifts(self, interaction: discord.Interaction, button: ui.Button):
         view = ui.View()
         view.add_item(ShopItemSelect("gifts", self.bot_token))
         await interaction.response.send_message("🎀 **想送什么给我呢？**", view=view, ephemeral=True)
 
-# 导入时需要的其他组件
 class EventVoteView(ui.View):
-    # ... (保持原样，省略以节省篇幅，实际文件中请保留) ...
     def __init__(self, bot, event_data):
         super().__init__(timeout=None)
         self.bot = bot
