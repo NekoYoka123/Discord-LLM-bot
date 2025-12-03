@@ -1,136 +1,566 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-bs-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Discord 机器人控制台 V2</title>
+    <title>Discord Bot Command Center</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+    
     <style>
-        body { background-color: #f0f2f5; padding-top: 20px; padding-bottom: 50px;}
-        .card { margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); border: none; }
-        .card-header { font-weight: bold; }
-        textarea { font-family: monospace; font-size: 0.9rem; }
+        /* --- Discord 风格配色系统 --- */
+        :root {
+            --bg-tertiary: #202225;
+            --bg-secondary: #2f3136;
+            --bg-primary: #36393f;
+            --bg-hover: #393c43;
+            --text-normal: #dcddde;
+            --text-muted: #72767d;
+            --channel-selected: #393c43;
+            --interactive-active: #fff;
+            --divider: #202225;
+            --brand: #5865F2; /* Discord Blurple */
+            --brand-hover: #4752c4;
+            --success: #3ba55c;
+            --danger: #ed4245;
+            --warning: #faa61a;
+            --gold: #f1c40f;
+        }
+
+        body {
+            background-color: var(--bg-primary);
+            color: var(--text-normal);
+            font-family: 'Whitney', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            height: 100vh;
+            overflow: hidden; /* 防止整个页面滚动，只滚动内容区 */
+        }
+
+        /* --- 侧边栏样式 --- */
+        .sidebar {
+            width: 280px;
+            background-color: var(--bg-tertiary);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid #1a1b1e;
+        }
+
+        .sidebar-header {
+            padding: 20px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: var(--interactive-active);
+            border-bottom: 1px solid var(--divider);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .nav-pills {
+            padding: 10px;
+            gap: 5px;
+        }
+
+        .nav-pills .nav-link {
+            color: var(--text-muted);
+            border-radius: 4px;
+            padding: 10px 15px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            transition: all 0.2s;
+        }
+
+        .nav-pills .nav-link:hover {
+            background-color: var(--bg-hover);
+            color: var(--text-normal);
+        }
+
+        .nav-pills .nav-link.active {
+            background-color: var(--brand);
+            color: #fff;
+        }
+
+        .nav-pills .nav-link i { font-size: 1.1em; }
+
+        /* --- 主内容区样式 --- */
+        .main-content {
+            flex: 1;
+            height: 100vh;
+            overflow-y: auto; /* 内容区独立滚动 */
+            padding: 30px;
+            background-color: var(--bg-primary);
+        }
+
+        .content-card {
+            background-color: var(--bg-secondary);
+            border-radius: 8px;
+            border: none;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            margin-bottom: 24px;
+        }
+
+        .card-header {
+            background-color: var(--bg-secondary);
+            border-bottom: 1px solid var(--bg-tertiary);
+            padding: 16px 20px;
+            font-weight: 600;
+            color: var(--interactive-active);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        /* --- 控件美化 --- */
+        .form-control, .form-select {
+            background-color: var(--bg-tertiary);
+            border: 1px solid #202225;
+            color: var(--text-normal);
+        }
+
+        .form-control:focus, .form-select:focus {
+            background-color: #40444b;
+            border-color: var(--brand);
+            box-shadow: none;
+            color: #fff;
+        }
+
+        .btn-brand {
+            background-color: var(--brand);
+            color: #fff;
+        }
+        .btn-brand:hover { background-color: var(--brand-hover); color: #fff; }
+
+        .btn-icon { padding: 4px 8px; font-size: 0.9em; }
+
+        /* --- 表格美化 --- */
+        .table-custom {
+            --bs-table-bg: transparent;
+            --bs-table-color: var(--text-normal);
+            --bs-table-border-color: var(--bg-tertiary);
+        }
+        .table-custom th {
+            color: var(--text-muted);
+            font-weight: 600;
+            font-size: 0.85em;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* --- 滚动条 --- */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #2e3338; }
+        ::-webkit-scrollbar-thumb { background: #202225; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #1a1b1e; }
+        
+        /* --- 其他 --- */
+        .rpg-badge {
+            background: #202225;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.85em;
+            font-family: monospace;
+            border: 1px solid #3c3f45;
+        }
+        .text-gold { color: var(--gold); }
     </style>
 </head>
-<body>
-<div class="container">
-    <h1 class="mb-4 text-center">🤖 超级机器人后台</h1>
+<body class="d-flex">
 
-    <div class="row">
-        <div class="col-md-6">
-            <div class="card h-100">
-                <div class="card-header bg-warning text-dark">🧠 AI 大脑设定</div>
-                <div class="card-body">
-                    <form action="/save_ai_settings" method="POST">
-                        <div class="mb-3">
-                            <label class="form-label">🤖 系统提示词 (System Prompt)</label>
-                            <textarea class="form-control" name="system_prompt" rows="12" placeholder="你可以在这里输入很长的人设..." required>{{ config.system_prompt }}</textarea>
-                            <div class="form-text">这里定义机器人的基本性格、说话方式和规则。</div>
-                        </div>
-                        
-                        <div class="mb-3">
-                            <label class="form-label">🌡️ 温度 (Temperature): <span id="tempVal">{{ config.temperature }}</span></label>
-                            <input type="range" class="form-range" name="temperature" min="0" max="2" step="0.1" value="{{ config.temperature }}" oninput="document.getElementById('tempVal').innerText = this.value">
-                            <div class="form-text">0.0 = 理性严谨, 1.0 = 创意发散, 2.0 = 胡言乱语</div>
-                        </div>
-
-                        <div class="mb-3">
-                            <label class="form-label">📚 当前全局知识库 (通过 /知识输入 添加)</label>
-                            <div class="p-2 bg-light border rounded" style="max-height: 150px; overflow-y: auto;">
-                                {% if config.global_knowledge %}
-                                    <ul class="mb-0 ps-3">
-                                    {% for k in config.global_knowledge %}
-                                        <li>{{ k }}</li>
-                                    {% endfor %}
-                                    </ul>
-                                {% else %}
-                                    <span class="text-muted">暂无知识，去 Discord 用 /知识输入 添加</span>
-                                {% endif %}
-                            </div>
-                        </div>
-
-                        <button type="submit" class="btn btn-warning w-100">保存 AI 设定</button>
-                    </form>
-                </div>
-            </div>
+    <div class="sidebar flex-shrink-0">
+        <div class="sidebar-header">
+            <i class="bi bi-controller"></i> 控制中心
         </div>
-
-        <div class="col-md-6">
-            <div class="card">
-                <div class="card-header bg-primary text-white">机器人实例</div>
-                <div class="card-body">
-                    <table class="table table-sm align-middle">
-                        <thead><tr><th>Bot</th><th>状态</th><th>操作</th></tr></thead>
-                        <tbody>
-                            {% for bot in bots %}
-                            <tr>
-                                <td>{{ bot.user }}<br><small class="text-muted">{{ bot.token_mask }}</small></td>
-                                <td>{{ bot.status }}</td>
-                                <td>
-                                    <form action="/manage_bot" method="POST" class="d-inline">
-                                        <input type="hidden" name="token" value="{{ bot.full_token }}">
-                                        <button name="action" value="stop" class="btn btn-sm btn-outline-danger">停</button>
-                                        <button name="action" value="start" class="btn btn-sm btn-outline-success">启</button>
-                                        <button name="action" value="delete" class="btn btn-sm btn-link text-danger">删</button>
-                                    </form>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                    <form action="/manage_bot" method="POST" class="input-group">
-                        <input type="text" class="form-control" name="new_token" placeholder="Bot Token" required>
-                        <button class="btn btn-primary" name="action" value="add">添加</button>
-                    </form>
-                </div>
-            </div>
-
-            <div class="card">
-                <div class="card-header bg-success text-white">API 连接</div>
-                <div class="card-body">
-                    <div class="mb-3">
-                        <button id="testBtn" class="btn btn-sm btn-outline-success w-100">🛠 测试连接</button>
-                        <small id="testResult" class="d-block mt-1 text-center"></small>
-                    </div>
-                    <hr>
-                    <form action="/update_api" method="POST">
-                        <input type="text" class="form-control mb-2" name="url" placeholder="URL (e.g. https://open.ai/v1)" required>
-                        <input type="text" class="form-control mb-2" name="model" value="gpt-3.5-turbo" placeholder="Model Name">
-                        <textarea class="form-control mb-2" name="keys" rows="2" placeholder="Keys (每行一个)" required></textarea>
-                        <button type="submit" class="btn btn-success btn-sm w-100">添加 API 组</button>
-                    </form>
-                </div>
-            </div>
-
-             <div class="card">
-                <div class="card-header bg-dark text-white">后台喊话</div>
-                <div class="card-body">
-                    <form action="/admin_say" method="POST">
-                        <select class="form-select mb-2" name="bot_token_mask">
-                            {% for bot in bots %}
-                            <option value="{{ bot.token_mask }}">{{ bot.user }}</option>
-                            {% endfor %}
-                        </select>
-                        <input type="number" class="form-control mb-2" name="channel_id" placeholder="Channel ID" required>
-                        <textarea class="form-control mb-2" name="message" rows="2" required></textarea>
-                        <button type="submit" class="btn btn-dark btn-sm w-100">发送</button>
-                    </form>
-                </div>
-            </div>
+        <div class="nav flex-column nav-pills mt-3" id="v-pills-tab" role="tablist" aria-orientation="vertical">
+            <button class="nav-link active" id="tab-dashboard" data-bs-toggle="pill" data-bs-target="#content-dashboard" type="button">
+                <i class="bi bi-speedometer2"></i> 运行概览
+            </button>
+            <button class="nav-link" id="tab-brain" data-bs-toggle="pill" data-bs-target="#content-brain" type="button">
+                <i class="bi bi-cpu"></i> AI 大脑设定
+            </button>
+            <button class="nav-link" id="tab-players" data-bs-toggle="pill" data-bs-target="#content-players" type="button">
+                <i class="bi bi-people-fill"></i> 玩家数据库
+            </button>
+            <button class="nav-link" id="tab-api" data-bs-toggle="pill" data-bs-target="#content-api" type="button">
+                <i class="bi bi-link-45deg"></i> API 连接池
+            </button>
+        </div>
+        
+        <div class="mt-auto p-3 text-muted small text-center border-top border-dark">
+            Running on Zeabur<br>v3.2.0 RPG Edition
         </div>
     </div>
-</div>
 
-<script>
-    document.getElementById('testBtn').addEventListener('click', async () => {
-        const span = document.getElementById('testResult');
-        span.innerText = "测试中...";
-        try {
-            const req = await fetch('/test_api', {method: 'POST'});
-            const data = await req.json();
-            span.innerText = data.response;
-        } catch (e) { span.innerText = "Error: " + e; }
-    });
-</script>
+    <div class="main-content">
+        <div class="tab-content" id="v-pills-tabContent">
+            
+            <div class="tab-pane fade show active" id="content-dashboard">
+                <h3 class="mb-4 text-white">运行概览</h3>
+                
+                <div class="card content-card">
+                    <div class="card-header">
+                        <span><i class="bi bi-robot me-2"></i>实例列表</span>
+                        <span class="badge bg-secondary rounded-pill">{{ bots|length }}</span>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-custom align-middle mb-0">
+                                <thead>
+                                    <tr>
+                                        <th class="ps-4">Bot 名称</th>
+                                        <th>Token (Masked)</th>
+                                        <th>状态</th>
+                                        <th class="text-end pe-4">操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for bot in bots %}
+                                    <tr>
+                                        <td class="ps-4 fw-bold text-white">{{ bot.user }}</td>
+                                        <td class="font-monospace text-muted">{{ bot.token_mask }}</td>
+                                        <td>
+                                            {% if "运行中" in bot.status %}
+                                                <span class="badge bg-success bg-opacity-10 text-success border border-success"><i class="bi bi-dot"></i> Online</span>
+                                            {% else %}
+                                                <span class="badge bg-danger bg-opacity-10 text-danger border border-danger"><i class="bi bi-dot"></i> Offline</span>
+                                            {% endif %}
+                                        </td>
+                                        <td class="text-end pe-4">
+                                            <form action="/manage_bot" method="POST" class="d-inline">
+                                                <input type="hidden" name="token" value="{{ bot.full_token }}">
+                                                {% if "运行中" in bot.status %}
+                                                    <button name="action" value="stop" class="btn btn-sm btn-outline-danger btn-icon" title="停止"><i class="bi bi-stop-fill"></i></button>
+                                                {% else %}
+                                                    <button name="action" value="start" class="btn btn-sm btn-outline-success btn-icon" title="启动"><i class="bi bi-play-fill"></i></button>
+                                                {% endif %}
+                                                <button name="action" value="delete" class="btn btn-sm btn-outline-secondary btn-icon ms-1" onclick="return confirm('确定删除此实例？')" title="删除"><i class="bi bi-trash"></i></button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                    {% if bots|length == 0 %}
+                                    <tr><td colspan="4" class="text-center py-4 text-muted">暂无机器人实例，请在下方添加。</td></tr>
+                                    {% endif %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="card-footer bg-transparent border-top border-dark p-3">
+                        <form action="/manage_bot" method="POST" class="row g-2 align-items-center">
+                            <div class="col-auto"><label class="text-muted small">新增实例:</label></div>
+                            <div class="col-md-6">
+                                <input type="text" class="form-control form-control-sm" name="new_token" placeholder="粘贴 Discord Bot Token..." required>
+                            </div>
+                            <div class="col-auto">
+                                <button class="btn btn-brand btn-sm" name="action" value="add"><i class="bi bi-plus-lg"></i> 添加并启动</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="card content-card">
+                    <div class="card-header">
+                        <span><i class="bi bi-megaphone me-2"></i>管理员喊话 (Console Say)</span>
+                    </div>
+                    <div class="card-body">
+                         <form action="/admin_say" method="POST">
+                             <div class="row g-3">
+                                 <div class="col-md-3">
+                                     <select class="form-select" name="bot_token_mask">
+                                         {% for bot in bots %}<option value="{{ bot.token_mask }}">{{ bot.user }}</option>{% endfor %}
+                                     </select>
+                                 </div>
+                                 <div class="col-md-3">
+                                     <input type="number" class="form-control" name="channel_id" placeholder="Channel ID" required>
+                                 </div>
+                                 <div class="col-md-6">
+                                     <div class="input-group">
+                                         <input type="text" class="form-control" name="message" placeholder="输入要发送的内容..." required>
+                                         <button class="btn btn-primary"><i class="bi bi-send"></i></button>
+                                     </div>
+                                 </div>
+                             </div>
+                         </form>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tab-pane fade" id="content-brain">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h3 class="text-white mb-0">AI 设定与人格</h3>
+                    
+                    <form action="/" method="GET" class="d-flex align-items-center bg-dark rounded p-1 border border-secondary">
+                        <span class="text-muted small px-2">正在配置:</span>
+                        <select name="bot" class="form-select form-select-sm border-0 bg-transparent text-white" style="width: 200px; cursor: pointer;" onchange="this.form.submit()">
+                            <option value="default" {% if selected_token == 'default' %}selected{% endif %}>🌍 全局默认配置</option>
+                            {% for t in all_tokens %}
+                            <option value="{{ t }}" {% if selected_token == t %}selected{% endif %}>🤖 {{ t[:10] }}...</option>
+                            {% endfor %}
+                        </select>
+                        <input type="hidden" name="tab" value="brain">
+                    </form>
+                </div>
+
+                <div class="row g-4">
+                    <div class="col-lg-7">
+                        <div class="card content-card h-100">
+                            <div class="card-header text-warning">
+                                <span><i class="bi bi-sliders me-2"></i>核心人格 (System Prompt)</span>
+                            </div>
+                            <div class="card-body">
+                                <form action="/save_bot_settings" method="POST">
+                                    <input type="hidden" name="target_token" value="{{ selected_token }}">
+                                    
+                                    <div id="prompts-container" class="mb-3">
+                                        {% for p in config.system_prompts %}
+                                        <div class="input-group mb-2">
+                                            <span class="input-group-text bg-tertiary border-secondary text-muted"><i class="bi bi-chat-quote"></i></span>
+                                            <textarea class="form-control" name="system_prompt_{{ loop.index }}" rows="2">{{ p }}</textarea>
+                                            <button type="button" class="btn btn-outline-danger border-secondary" onclick="this.parentElement.remove()"><i class="bi bi-x-lg"></i></button>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                    
+                                    <div class="d-grid gap-2 mb-4">
+                                        <button type="button" class="btn btn-outline-secondary btn-sm border-dashed" onclick="addPromptField()">
+                                            <i class="bi bi-plus-circle"></i> 增加一条人设/规则
+                                        </button>
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <label class="form-label d-flex justify-content-between">
+                                            <span>🔥 创造力 (Temperature)</span>
+                                            <span class="badge bg-warning text-dark">{{ config.temperature }}</span>
+                                        </label>
+                                        <input type="range" class="form-range" name="temperature" min="0" max="2" step="0.1" value="{{ config.temperature }}">
+                                        <div class="d-flex justify-content-between small text-muted">
+                                            <span>严谨 (0.0)</span>
+                                            <span>疯狂 (2.0)</span>
+                                        </div>
+                                    </div>
+                                    
+                                    <button type="submit" class="btn btn-warning w-100 fw-bold text-dark mt-2">保存设定</button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-lg-5">
+                        <div class="card content-card h-100">
+                            <div class="card-header text-info">
+                                <span><i class="bi bi-journal-bookmark me-2"></i>知识库 (RAG)</span>
+                            </div>
+                            <div class="card-body d-flex flex-column">
+                                <div class="flex-grow-1 overflow-auto custom-scrollbar mb-3" style="max-height: 400px;">
+                                    {% if config.knowledge %}
+                                        {% for k in config.knowledge %}
+                                        <div class="d-flex align-items-start p-2 mb-2 bg-dark rounded border border-secondary">
+                                            <i class="bi bi-lightbulb text-info me-2 mt-1"></i>
+                                            <div class="flex-grow-1 small text-break">{{ k }}</div>
+                                            <form action="/api/knowledge/delete" method="POST" class="ms-2">
+                                                <input type="hidden" name="target_token" value="{{ selected_token }}">
+                                                <input type="hidden" name="index" value="{{ loop.index0 }}">
+                                                <button class="btn btn-link text-muted p-0 hover-danger"><i class="bi bi-trash"></i></button>
+                                            </form>
+                                        </div>
+                                        {% endfor %}
+                                    {% else %}
+                                        <div class="text-center text-muted py-5">
+                                            <i class="bi bi-inbox fs-1 d-block mb-2 opacity-25"></i>
+                                            大脑空空如也<br><small>请添加一些知识点</small>
+                                        </div>
+                                    {% endif %}
+                                </div>
+                                <form action="/api/knowledge/add" method="POST" class="mt-auto">
+                                    <input type="hidden" name="target_token" value="{{ selected_token }}">
+                                    <div class="input-group">
+                                        <input type="text" class="form-control" name="content" placeholder="输入新的知识点..." required>
+                                        <button class="btn btn-info"><i class="bi bi-plus-lg"></i></button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tab-pane fade" id="content-players">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h3 class="text-white mb-0">玩家与RPG数据</h3>
+                    <a href="/user_cards" class="btn btn-outline-light btn-sm"><i class="bi bi-arrow-clockwise"></i> 刷新数据</a>
+                </div>
+
+                <div class="card content-card">
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-custom table-hover align-middle mb-0">
+                                <thead class="bg-darker">
+                                    <tr>
+                                        <th class="ps-4">UID</th>
+                                        <th>人设 / 名片</th>
+                                        <th>好感度</th>
+                                        <th>装备 (Weapon/Armor)</th>
+                                        <th>资产 (Gold)</th>
+                                        <th>战斗属性 (RPG)</th>
+                                        <th class="text-end pe-4">管理</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for uid, u in users.items() %}
+                                    <tr>
+                                        <td class="ps-4"><span class="badge bg-secondary font-monospace opacity-50">{{ uid }}</span></td>
+                                        <td>
+                                            <div class="text-truncate text-muted small fst-italic" style="max-width: 150px;">
+                                                {% if u.card %}{{ u.card }}{% else %}(未设置){% endif %}
+                                            </div>
+                                        </td>
+                                        <td>
+                                            {% if u.favorability >= 500 %} <span class="badge bg-danger">❤️ 挚爱 {{ u.favorability }}</span>
+                                            {% elif u.favorability >= 200 %} <span class="text-danger fw-bold">挚友 {{ u.favorability }}</span>
+                                            {% elif u.favorability <= -500 %} <span class="badge bg-dark">☠️ 死敌 {{ u.favorability }}</span>
+                                            {% elif u.favorability <= -200 %} <span class="text-secondary fw-bold">厌恶 {{ u.favorability }}</span>
+                                            {% else %} <span class="text-muted">{{ u.favorability }}</span> {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if u.equip %}
+                                            <div class="d-flex flex-column gap-1 small">
+                                                <span class="text-info"><i class="bi bi-sword"></i> {{ u.equip.weapon }}</span>
+                                                <span class="text-warning"><i class="bi bi-shield-shaded"></i> {{ u.equip.armor }}</span>
+                                            </div>
+                                            {% else %}
+                                            <small class="text-muted">无装备</small>
+                                            {% endif %}
+                                        </td>
+                                        <td class="text-gold fw-bold">
+                                            <i class="bi bi-coin"></i> {{ u.gold or 0 }}
+                                        </td>
+                                        <td>
+                                            <div class="d-flex gap-2">
+                                                <span class="rpg-badge text-warning">LV.{{ u.rpg.lv }}</span>
+                                                <span class="rpg-badge text-danger">HP {{ u.rpg.hp }}</span>
+                                            </div>
+                                        </td>
+                                        <td class="text-end pe-4">
+                                            <form action="/delete_card" method="POST" onsubmit="return confirm('警告：确定要删除该玩家的所有数据（存档）吗？此操作无法撤销。');">
+                                                <input type="hidden" name="uid" value="{{ uid }}">
+                                                <button class="btn btn-sm btn-outline-danger btn-icon" title="删档"><i class="bi bi-trash-fill"></i></button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                    {% if users|length == 0 %}
+                                        <tr><td colspan="7" class="text-center py-5 text-muted">暂无玩家数据。</td></tr>
+                                    {% endif %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tab-pane fade" id="content-api">
+                <h3 class="text-white mb-4">API 连接池 (全局共享)</h3>
+                
+                <div class="row">
+                    <div class="col-lg-8">
+                        {% for api in apis %}
+                        <div class="card content-card border-start border-4 border-success">
+                            <div class="card-body d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h5 class="mb-1 text-white">
+                                        <span class="badge bg-success me-2">{{ api.model }}</span>
+                                    </h5>
+                                    <div class="text-muted font-monospace small mb-2">{{ api.url }}</div>
+                                    <div class="d-flex gap-2">
+                                        <span class="badge bg-dark border border-secondary text-muted">Key池大小: {{ api['keys']|length }}</span>
+                                    </div>
+                                </div>
+                                <form action="/delete_api" method="POST">
+                                    <input type="hidden" name="index" value="{{ loop.index0 }}">
+                                    <button class="btn btn-outline-danger"><i class="bi bi-trash"></i> 移除</button>
+                                </form>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    
+                    <div class="col-lg-4">
+                        <div class="card content-card bg-darker">
+                            <div class="card-header border-0 text-success">
+                                <i class="bi bi-plus-circle me-2"></i> 添加新的 API 源
+                            </div>
+                            <div class="card-body">
+                                <form action="/update_api" method="POST">
+                                    <div class="mb-3">
+                                        <label class="form-label small text-muted">API Base URL</label>
+                                        <input type="text" class="form-control" name="url" placeholder="https://api.openai.com/v1" required>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label small text-muted">Model Name</label>
+                                        <input type="text" class="form-control" name="model" value="gpt-3.5-turbo" placeholder="gpt-4, etc...">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label small text-muted">API Keys (One per line)</label>
+                                        <textarea class="form-control font-monospace" name="keys" rows="5" placeholder="sk-..." required></textarea>
+                                    </div>
+                                    <button class="btn btn-success w-100">添加配置</button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // 动态添加 System Prompt 输入框
+        function addPromptField() {
+            const container = document.getElementById('prompts-container');
+            const div = document.createElement('div');
+            div.className = 'input-group mb-2';
+            div.innerHTML = `
+                <span class="input-group-text bg-tertiary border-secondary text-muted"><i class="bi bi-chat-quote"></i></span>
+                <textarea class="form-control" name="system_prompt_${Date.now()}" rows="2" placeholder="输入新的规则..."></textarea>
+                <button type="button" class="btn btn-outline-danger border-secondary" onclick="this.parentElement.remove()"><i class="bi bi-x-lg"></i></button>
+            `;
+            container.appendChild(div);
+        }
+
+        // 智能 Tab 记忆功能 (刷新后保持在当前 Tab)
+        document.addEventListener('DOMContentLoaded', () => {
+            // 1. 检查 URL query param 和 hash
+            const urlParams = new URLSearchParams(window.location.search);
+            let activeTab = window.location.hash;
+
+            // 2. 如果 URL 中有 tab 参数，优先使用
+            if (urlParams.get('tab') === 'brain') activeTab = '#content-brain';
+            else if (urlParams.get('tab') === 'api') activeTab = '#content-api';
+            else if (!activeTab && window.location.href.includes('user_cards')) activeTab = '#content-players';
+
+            // 3. 激活 Tab
+            if (activeTab) {
+                // 将 content-ID 转换为 tab-ID
+                const targetBtnId = activeTab.replace('#content-', 'tab-');
+                const triggerEl = document.getElementById(targetBtnId);
+                if (triggerEl) {
+                    const tabInstance = new bootstrap.Tab(triggerEl);
+                    tabInstance.show();
+                }
+            }
+
+            // 4. 监听点击，实时更新 Hash，方便刷新后留存
+            const tabLinks = document.querySelectorAll('button[data-bs-toggle="pill"]');
+            tabLinks.forEach(link => {
+                link.addEventListener('shown.bs.tab', event => {
+                    const targetId = event.target.getAttribute('data-bs-target');
+                    history.pushState(null, null, targetId);
+                });
+            });
+        });
+    </script>
 </body>
 </html>
