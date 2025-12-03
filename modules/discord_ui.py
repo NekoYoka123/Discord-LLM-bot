@@ -1,7 +1,7 @@
 # modules/discord_ui.py
 import discord
 from discord import ui
-from .config import load_config, save_config, load_user_data, save_user_data
+from .config import load_config, save_config, load_user_data, save_user_data, get_player_data
 from .game_data import ITEMS_DB, get_favorability_stage
 from .ai import ask_ai
 
@@ -70,16 +70,16 @@ class LoveLetterModal(ui.Modal, title="💌 书写情书"):
 
     async def on_submit(self, interaction: discord.Interaction):
         user_data = load_user_data()
-        uid = str(interaction.user.id)
-        if uid not in user_data: user_data[uid] = {"gold":0, "favorability":0, "equip":{}}
+        # 变更：获取当前Bot下的隔离数据
+        u_data = get_player_data(user_data, interaction.user.id, self.bot_token)
         
-        if user_data[uid]["gold"] < self.cost:
+        if u_data["gold"] < self.cost:
             return await interaction.response.send_message("💸 你的钱不够了...", ephemeral=True)
 
-        user_data[uid]["gold"] -= self.cost
+        u_data["gold"] -= self.cost
         item_data = ITEMS_DB['gifts'][self.item_name]
         fav_add = item_data['fav']
-        user_data[uid]["favorability"] = user_data[uid].get("favorability", 0) + fav_add
+        u_data["favorability"] = u_data.get("favorability", 0) + fav_add
         save_user_data(user_data)
 
         msg = f"💌 你羞涩地递出了 **{self.item_name}**！ (好感度 +{fav_add})\n> *{self.content.value}*"
@@ -95,7 +95,7 @@ class LoveLetterModal(ui.Modal, title="💌 书写情书"):
             self.bot_token, 
             interaction.user.display_name, 
             user_id=interaction.user.id,
-            current_fav=user_data[uid].get("favorability", 0),
+            current_fav=u_data.get("favorability", 0),
             pure_reply=True,
             action_type="gift_receive"
         )
@@ -114,7 +114,6 @@ class ShopItemSelect(ui.Select):
             cost = data['cost']
             desc = data['desc'][:50]
             
-            # 根据类别生成不同的描述前缀
             if category == 'gifts': desc = f"[好感+{data['fav']}] {desc}"
             elif category == 'armors' and 'def' in data: desc = f"[DEF+{data['def']}] {desc}"
             elif category == 'potions': desc = f"[HP+{data['hp_rec']}] {desc}"
@@ -128,18 +127,15 @@ class ShopItemSelect(ui.Select):
         item_data = ITEMS_DB[self.category][item_name]
         cost = item_data['cost']
         
-        # 特殊处理情书
         if item_name == "情书":
              user_data = load_user_data()
-             uid = str(interaction.user.id)
-             gold = user_data.get(uid, {}).get("gold", 0)
-             if gold < cost: return await interaction.response.send_message(f"💸 余额不足！需要 {cost}G。", ephemeral=True)
+             u_data = get_player_data(user_data, interaction.user.id, self.bot_token)
+             if u_data.get("gold", 0) < cost: return await interaction.response.send_message(f"💸 余额不足！需要 {cost}G。", ephemeral=True)
              return await interaction.response.send_modal(LoveLetterModal(self.bot_token, item_name, cost))
 
         user_data = load_user_data()
-        uid = str(interaction.user.id)
-        if uid not in user_data: user_data[uid] = {"gold":0, "rpg":{"lv":1,"hp":100,"atk":10}, "favorability":0, "equip":{"weapon":"无","armor":"无"}}
-        u = user_data[uid]
+        # 变更：获取当前Bot下的隔离数据
+        u = get_player_data(user_data, interaction.user.id, self.bot_token)
         
         if u["gold"] < cost:
             return await interaction.response.send_message(f"💸 余额不足！", ephemeral=True)
@@ -149,24 +145,17 @@ class ShopItemSelect(ui.Select):
         action_type = "normal_chat"
         fav_stage = get_favorability_stage(u.get("favorability", 0))
 
-        # --- 购买逻辑分发 ---
         if self.category == "potions":
-            # 回复类：直接加血
             hp_rec = item_data['hp_rec']
             current_hp = u.get("rpg", {}).get("hp", 100)
-            
-            # 简单假设上限是 100 + 装备加成，这里为了简单只判断基础上限100
-            # 或者直接允许溢出一点点也行，这里做个简单限制
-            if current_hp >= 500: # 假设绝对上限
+            if current_hp >= 500:
                 return await interaction.response.send_message("❌ 你的状态已经很好了，喝不下了！", ephemeral=True)
-            
             u["gold"] -= cost
             u["rpg"]["hp"] = current_hp + hp_rec
             msg = f"🧪 咕嘟咕嘟... 你喝下了 **{item_name}**！ (HP +{hp_rec} -> {u['rpg']['hp']})"
             ai_prompt = f"用户在你面前喝下了{item_name}，气色变好了。请评价一句。"
 
         elif self.category == "tools":
-            # 功能类
             if item_name == "赎罪券":
                 current_fav = u.get("favorability", 0)
                 if current_fav >= 0:
@@ -176,7 +165,6 @@ class ShopItemSelect(ui.Select):
                 msg = f"📜 你使用了 **赎罪券**。神圣的光芒照耀下，过去的恩怨一笔勾销。(好感度重置为 0)"
                 ai_prompt = f"用户使用了赎罪券，消除了你对他的所有仇恨（原本好感度{current_fav}）。你感觉突然释怀了，请表现出这种态度的转变。"
             else:
-                 # 其他道具暂未实现
                  return await interaction.response.send_message("❌ 该道具暂未实装效果。", ephemeral=True)
 
         elif self.category == "weapons":
@@ -208,7 +196,6 @@ class ShopItemSelect(ui.Select):
         
         save_user_data(user_data)
         
-        # 统一调用 AI 回复
         reply = await ask_ai(
             ai_prompt, 
             self.bot_token, 
@@ -319,9 +306,10 @@ class CardModal(ui.Modal, title="✨ 个人档案设置"):
         self.bot_token = bot_token
     async def on_submit(self, interaction: discord.Interaction):
         user_data = load_user_data()
-        uid = str(interaction.user.id)
-        if uid not in user_data: user_data[uid] = {"favorability": 0, "rpg": {"lv":1, "hp":100}, "gold":0}
-        user_data[uid]["card"] = self.story.value
+        # 变更：获取当前Bot下的隔离数据
+        u = get_player_data(user_data, interaction.user.id, self.bot_token)
+        u["card"] = self.story.value
         save_user_data(user_data)
+        
         reply = await ask_ai(f"用户更新了名片：{self.story.value}。请评价。", self.bot_token, interaction.user.display_name, pure_reply=True)
         await interaction.response.send_message(f"✅ 更新成功。\n🤖 {reply}", ephemeral=True)

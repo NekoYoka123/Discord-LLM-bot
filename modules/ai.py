@@ -1,6 +1,6 @@
 import random
 import aiohttp
-from .config import load_config, get_bot_config, load_user_data
+from .config import load_config, get_bot_config, load_user_data, get_player_data
 from .game_data import get_favorability_stage
 
 async def ask_ai(prompt, bot_token=None, user_name=None, user_id=None, history_context=None, current_fav=0, system_override=None, pure_reply=False, action_type=None):
@@ -23,9 +23,11 @@ async def ask_ai(prompt, bot_token=None, user_name=None, user_id=None, history_c
         
         final_system_prompt = f"{base_prompt}\n\n【已有知识库】:\n{knowledge}"
         
-        if user_id:
+        if user_id and bot_token:
             user_data = load_user_data()
-            user_info = user_data.get(str(user_id), {})
+            # 变更：获取隔离后的数据，以确保 AI 读取的是该 Bot 实例下的记忆
+            user_info = get_player_data(user_data, user_id, bot_token)
+            
             card = user_info.get("card", "无")
             equip = user_info.get("equip", {"weapon":"无", "armor":"无"})
             

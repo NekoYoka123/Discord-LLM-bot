@@ -32,7 +32,7 @@
             color: var(--text-normal);
             font-family: 'Whitney', 'Helvetica Neue', Helvetica, Arial, sans-serif;
             height: 100vh;
-            overflow: hidden; /* 防止整个页面滚动，只滚动内容区 */
+            overflow: hidden;
         }
 
         /* --- 侧边栏样式 --- */
@@ -88,7 +88,7 @@
         .main-content {
             flex: 1;
             height: 100vh;
-            overflow-y: auto; /* 内容区独立滚动 */
+            overflow-y: auto;
             padding: 30px;
             background-color: var(--bg-primary);
         }
@@ -177,7 +177,7 @@
                 <i class="bi bi-speedometer2"></i> 运行概览
             </button>
             <button class="nav-link" id="tab-brain" data-bs-toggle="pill" data-bs-target="#content-brain" type="button">
-                <i class="bi bi-cpu"></i> AI 大脑设定
+                <i class="bi bi-cpu"></i> AI 大脑与指令
             </button>
             <button class="nav-link" id="tab-players" data-bs-toggle="pill" data-bs-target="#content-players" type="button">
                 <i class="bi bi-people-fill"></i> 玩家数据库
@@ -188,7 +188,7 @@
         </div>
         
         <div class="mt-auto p-3 text-muted small text-center border-top border-dark">
-            Running on Zeabur<br>v3.2.0 RPG Edition
+            Running on Zeabur<br>v3.5.0 Multi-Bot Edition
         </div>
     </div>
 
@@ -288,7 +288,7 @@
 
             <div class="tab-pane fade" id="content-brain">
                 <div class="d-flex justify-content-between align-items-center mb-4">
-                    <h3 class="text-white mb-0">AI 设定与人格</h3>
+                    <h3 class="text-white mb-0">AI 设定与指令配置</h3>
                     
                     <form action="/" method="GET" class="d-flex align-items-center bg-dark rounded p-1 border border-secondary">
                         <span class="text-muted small px-2">正在配置:</span>
@@ -329,52 +329,51 @@
                                     </div>
 
                                     <div class="mb-4">
-                                        <label class="form-label fw-bold text-white small">🛠️ 功能模块 (Modules)</label>
+                                        <label class="form-label fw-bold text-white small">🛠️ 指令管理 (Commands)</label>
                                         <div class="bg-dark p-3 rounded border border-secondary">
-                                            <div class="row g-3">
-                                                <div class="col-6">
-                                                    <div class="form-check form-switch">
-                                                        <input class="form-check-input" type="checkbox" name="module_chat" id="mod_chat" {% if 'chat' in config.enabled_modules %}checked{% endif %}>
-                                                        <label class="form-check-label fw-bold" for="mod_chat">💬 智能聊天 (LLM)</label>
-                                                    </div>
-                                                    <small class="text-muted d-block ms-4" style="font-size: 0.8em;">
-                                                        包含: 自动回复, 上下文记忆
-                                                    </small>
-                                                </div>
-                                                <div class="col-6">
-                                                    <div class="form-check form-switch">
-                                                        <input class="form-check-input" type="checkbox" name="module_rpg" id="mod_rpg" {% if 'rpg' in config.enabled_modules %}checked{% endif %}>
-                                                        <label class="form-check-label fw-bold" for="mod_rpg">⚔️ RPG / 游戏系统</label>
-                                                    </div>
-                                                    <small class="text-muted d-block ms-4" style="font-size: 0.8em;">
-                                                        包含: /商店, /决斗, /探索, /自定义探索, /我的数据
-                                                    </small>
-                                                </div>
-                                                <div class="col-6">
-                                                    <div class="form-check form-switch">
-                                                        <input class="form-check-input" type="checkbox" name="module_admin" id="mod_admin" {% if 'admin' in config.enabled_modules %}checked{% endif %}>
-                                                        <label class="form-check-label fw-bold" for="mod_admin">🛡️ 管理员指令</label>
-                                                    </div>
-                                                    <small class="text-muted d-block ms-4" style="font-size: 0.8em;">
-                                                        包含: /修改好感度, /清除名片, /清理
-                                                    </small>
-                                                </div>
-                                                <div class="col-6">
-                                                    <div class="form-check form-switch">
-                                                        <input class="form-check-input" type="checkbox" name="module_utility" id="mod_util" {% if 'utility' in config.enabled_modules %}checked{% endif %}>
-                                                        <label class="form-check-label fw-bold" for="mod_util">🔧 实用工具</label>
-                                                    </div>
-                                                    <small class="text-muted d-block ms-4" style="font-size: 0.8em;">
-                                                        包含: /名片, /提醒, /总结
-                                                    </small>
-                                                </div>
+                                            
+                                            <div class="d-flex align-items-center mb-3 pb-3 border-bottom border-secondary">
+                                                 <div class="form-check form-switch me-3">
+                                                     <input class="form-check-input" type="checkbox" name="cmd_chat" id="cmd_chat" 
+                                                            {% if 'chat' in config.enabled_commands %}checked{% endif %}>
+                                                     <label class="form-check-label fw-bold text-info" for="cmd_chat">💬 智能聊天 (Chat)</label>
+                                                 </div>
+                                                 <small class="text-muted">启用后，Bot 会响应提及(Mention)和回复，并具备上下文记忆。</small>
                                             </div>
+
+                                            <div class="row g-3">
+                                                {% for mod_key, mod in module_defs.items() %}
+                                                    {% if mod_key != 'chat' %}
+                                                    <div class="col-12">
+                                                        <h6 class="text-muted text-uppercase small mb-2" style="font-size: 0.75rem;">
+                                                            <i class="bi bi-grid-3x3-gap"></i> {{ mod.label }}
+                                                        </h6>
+                                                        <div class="row g-2">
+                                                            {% for cmd_name, cmd_desc in mod.commands.items() %}
+                                                            <div class="col-md-6 col-lg-6">
+                                                                <div class="form-check form-switch p-2 rounded bg-tertiary border border-secondary h-100 d-flex align-items-center">
+                                                                    <input class="form-check-input ms-1 me-2" type="checkbox" name="cmd_{{ cmd_name }}" id="id_{{ cmd_name }}" 
+                                                                           {% if cmd_name in config.enabled_commands %}checked{% endif %}>
+                                                                    <label class="form-check-label w-100" for="id_{{ cmd_name }}" style="cursor: pointer;">
+                                                                        <div class="d-flex justify-content-between align-items-center">
+                                                                            <span class="fw-bold text-white">/{{ cmd_name }}</span>
+                                                                        </div>
+                                                                        <div class="text-muted text-truncate" style="font-size: 0.75em; max-width: 180px;">{{ cmd_desc }}</div>
+                                                                    </label>
+                                                                </div>
+                                                            </div>
+                                                            {% endfor %}
+                                                        </div>
+                                                    </div>
+                                                    {% endif %}
+                                                {% endfor %}
+                                            </div>
+                                            
                                             <div class="text-muted small mt-3 pt-2 border-top border-secondary">
-                                                <i class="bi bi-info-circle"></i> 保存后，请在“运行概览”中 <b>停止并重新启动</b> 对应的 Bot 才能生效。
+                                                <i class="bi bi-info-circle"></i> 提示：修改指令开关后，请在“运行概览”中 <b>重启对应的 Bot</b> 才能生效（Discord 需要重新同步指令树）。
                                             </div>
                                         </div>
                                     </div>
-
                                     <div class="mb-3">
                                         <label class="form-label d-flex justify-content-between">
                                             <span>🔥 创造力 (Temperature)</span>
@@ -431,7 +430,20 @@
             <div class="tab-pane fade" id="content-players">
                 <div class="d-flex justify-content-between align-items-center mb-4">
                     <h3 class="text-white mb-0">玩家与RPG数据</h3>
-                    <a href="/user_cards" class="btn btn-outline-light btn-sm"><i class="bi bi-arrow-clockwise"></i> 刷新数据</a>
+                    
+                    <div class="d-flex gap-2 align-items-center">
+                        <span class="text-muted small">查看存档:</span>
+                        <form action="/" method="GET">
+                            <input type="hidden" name="tab" value="players">
+                            <select name="bot" class="form-select form-select-sm bg-dark text-white border-secondary" style="width: 220px;" onchange="this.form.submit()">
+                                <option value="default" {% if selected_token == 'default' %}selected{% endif %}>-- 请选择一个 Bot --</option>
+                                {% for t in all_tokens %}
+                                <option value="{{ t }}" {% if selected_token == t %}selected{% endif %}>🤖 {{ t[:10] }}...</option>
+                                {% endfor %}
+                            </select>
+                        </form>
+                        <a href="/user_cards?tab=players&bot={{ selected_token }}" class="btn btn-outline-light btn-sm ms-2"><i class="bi bi-arrow-clockwise"></i></a>
+                    </div>
                 </div>
 
                 <div class="card content-card">
@@ -442,58 +454,74 @@
                                     <tr>
                                         <th class="ps-4">UID</th>
                                         <th>人设 / 名片</th>
-                                        <th>好感度</th>
-                                        <th>装备 (Weapon/Armor)</th>
-                                        <th>资产 (Gold)</th>
-                                        <th>战斗属性 (RPG)</th>
+                                        <th>好感度 (本Bot)</th>
+                                        <th>装备</th>
+                                        <th>资产</th>
+                                        <th>战斗属性</th>
                                         <th class="text-end pe-4">管理</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {% for uid, u in users.items() %}
-                                    <tr>
-                                        <td class="ps-4"><span class="badge bg-secondary font-monospace opacity-50">{{ uid }}</span></td>
-                                        <td>
-                                            <div class="text-truncate text-muted small fst-italic" style="max-width: 150px;">
-                                                {% if u.card %}{{ u.card }}{% else %}(未设置){% endif %}
-                                            </div>
-                                        </td>
-                                        <td>
-                                            {% if u.favorability >= 500 %} <span class="badge bg-danger">❤️ 挚爱 {{ u.favorability }}</span>
-                                            {% elif u.favorability >= 200 %} <span class="text-danger fw-bold">挚友 {{ u.favorability }}</span>
-                                            {% elif u.favorability <= -500 %} <span class="badge bg-dark">☠️ 死敌 {{ u.favorability }}</span>
-                                            {% elif u.favorability <= -200 %} <span class="text-secondary fw-bold">厌恶 {{ u.favorability }}</span>
-                                            {% else %} <span class="text-muted">{{ u.favorability }}</span> {% endif %}
-                                        </td>
-                                        <td>
-                                            {% if u.equip %}
-                                            <div class="d-flex flex-column gap-1 small">
-                                                <span class="text-info"><i class="bi bi-sword"></i> {{ u.equip.weapon }}</span>
-                                                <span class="text-warning"><i class="bi bi-shield-shaded"></i> {{ u.equip.armor }}</span>
-                                            </div>
-                                            {% else %}
-                                            <small class="text-muted">无装备</small>
+                                    {% if selected_token == 'default' %}
+                                        <tr><td colspan="7" class="text-center py-5 text-muted">
+                                            <i class="bi bi-arrow-up-right-square fs-1 d-block mb-3 opacity-25"></i>
+                                            请先在右上角选择一个 Bot 实例，<br>以查看该 Bot 记忆中的玩家存档。
+                                        </td></tr>
+                                    {% else %}
+                                        {% set current_bot_hash = get_token_hash(selected_token) %}
+                                        {% set has_data = false %}
+                                        
+                                        {% for uid, user_root in users.items() %}
+                                            {% set u = user_root.get(current_bot_hash) %}
+                                            
+                                            {% if u %}
+                                                {% set has_data = true %}
+                                                <tr>
+                                                    <td class="ps-4"><span class="badge bg-secondary font-monospace opacity-50">{{ uid }}</span></td>
+                                                    <td>
+                                                        <div class="text-truncate text-muted small fst-italic" style="max-width: 150px;">
+                                                            {% if u.card %}{{ u.card }}{% else %}(未设置){% endif %}
+                                                        </div>
+                                                    </td>
+                                                    <td>
+                                                        {% if u.favorability >= 500 %} <span class="badge bg-danger">❤️ 挚爱 {{ u.favorability }}</span>
+                                                        {% elif u.favorability >= 200 %} <span class="text-danger fw-bold">挚友 {{ u.favorability }}</span>
+                                                        {% elif u.favorability <= -500 %} <span class="badge bg-dark">☠️ 死敌 {{ u.favorability }}</span>
+                                                        {% elif u.favorability <= -200 %} <span class="text-secondary fw-bold">厌恶 {{ u.favorability }}</span>
+                                                        {% else %} <span class="text-muted">{{ u.favorability }}</span> {% endif %}
+                                                    </td>
+                                                    <td>
+                                                        {% if u.equip %}
+                                                        <div class="d-flex flex-column gap-1 small">
+                                                            <span class="text-info"><i class="bi bi-sword"></i> {{ u.equip.weapon }}</span>
+                                                            <span class="text-warning"><i class="bi bi-shield-shaded"></i> {{ u.equip.armor }}</span>
+                                                        </div>
+                                                        {% else %}
+                                                        <small class="text-muted">无装备</small>
+                                                        {% endif %}
+                                                    </td>
+                                                    <td class="text-gold fw-bold">
+                                                        <i class="bi bi-coin"></i> {{ u.gold or 0 }}
+                                                    </td>
+                                                    <td>
+                                                        <div class="d-flex gap-2">
+                                                            <span class="rpg-badge text-warning">LV.{{ u.rpg.lv }}</span>
+                                                            <span class="rpg-badge text-danger">HP {{ u.rpg.hp }}</span>
+                                                        </div>
+                                                    </td>
+                                                    <td class="text-end pe-4">
+                                                        <form action="/delete_card" method="POST" onsubmit="return confirm('警告：确定要删除该玩家的数据吗？');">
+                                                            <input type="hidden" name="uid" value="{{ uid }}">
+                                                            <button class="btn btn-sm btn-outline-danger btn-icon" title="删档"><i class="bi bi-trash-fill"></i></button>
+                                                        </form>
+                                                    </td>
+                                                </tr>
                                             {% endif %}
-                                        </td>
-                                        <td class="text-gold fw-bold">
-                                            <i class="bi bi-coin"></i> {{ u.gold or 0 }}
-                                        </td>
-                                        <td>
-                                            <div class="d-flex gap-2">
-                                                <span class="rpg-badge text-warning">LV.{{ u.rpg.lv }}</span>
-                                                <span class="rpg-badge text-danger">HP {{ u.rpg.hp }}</span>
-                                            </div>
-                                        </td>
-                                        <td class="text-end pe-4">
-                                            <form action="/delete_card" method="POST" onsubmit="return confirm('警告：确定要删除该玩家的所有数据（存档）吗？此操作无法撤销。');">
-                                                <input type="hidden" name="uid" value="{{ uid }}">
-                                                <button class="btn btn-sm btn-outline-danger btn-icon" title="删档"><i class="bi bi-trash-fill"></i></button>
-                                            </form>
-                                        </td>
-                                    </tr>
-                                    {% endfor %}
-                                    {% if users|length == 0 %}
-                                        <tr><td colspan="7" class="text-center py-5 text-muted">暂无玩家数据。</td></tr>
+                                        {% endfor %}
+                                        
+                                        {% if not has_data %}
+                                            <tr><td colspan="7" class="text-center py-5 text-muted">该 Bot 暂时没有玩家数据。</td></tr>
+                                        {% endif %}
                                     {% endif %}
                                 </tbody>
                             </table>
@@ -559,7 +587,6 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // 动态添加 System Prompt 输入框
         function addPromptField() {
             const container = document.getElementById('prompts-container');
             const div = document.createElement('div');
@@ -572,20 +599,16 @@
             container.appendChild(div);
         }
 
-        // 智能 Tab 记忆功能 (刷新后保持在当前 Tab)
         document.addEventListener('DOMContentLoaded', () => {
-            // 1. 检查 URL query param 和 hash
             const urlParams = new URLSearchParams(window.location.search);
             let activeTab = window.location.hash;
 
-            // 2. 如果 URL 中有 tab 参数，优先使用
             if (urlParams.get('tab') === 'brain') activeTab = '#content-brain';
             else if (urlParams.get('tab') === 'api') activeTab = '#content-api';
+            else if (urlParams.get('tab') === 'players') activeTab = '#content-players'; // 增加 players 的 tab 记忆
             else if (!activeTab && window.location.href.includes('user_cards')) activeTab = '#content-players';
 
-            // 3. 激活 Tab
             if (activeTab) {
-                // 将 content-ID 转换为 tab-ID
                 const targetBtnId = activeTab.replace('#content-', 'tab-');
                 const triggerEl = document.getElementById(targetBtnId);
                 if (triggerEl) {
@@ -594,7 +617,6 @@
                 }
             }
 
-            // 4. 监听点击，实时更新 Hash，方便刷新后留存
             const tabLinks = document.querySelectorAll('button[data-bs-toggle="pill"]');
             tabLinks.forEach(link => {
                 link.addEventListener('shown.bs.tab', event => {

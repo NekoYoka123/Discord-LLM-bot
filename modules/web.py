@@ -1,7 +1,7 @@
 import os
 import asyncio
 from quart import Quart, render_template, request, redirect, url_for
-from .config import load_config, save_config, load_user_data, save_user_data
+from .config import load_config, save_config, load_user_data, save_user_data, get_bot_config, MODULE_DEFINITIONS, get_token_hash
 from .discord_bot import start_bot, active_bots
 
 app = Quart(__name__, template_folder='../templates')
@@ -27,7 +27,16 @@ async def index():
         bot_status.append({"token_mask": t[:6]+"...", "full_token": t, "status": status, "user": user_name})
 
     users = load_user_data()
-    return await render_template('index.html', bots=bot_status, apis=config['api_configs'], config=current_conf, selected_token=selected_token, all_tokens=config['bot_tokens'], users=users)
+    # 传递 module_defs 和 hash 函数给前端，用于渲染精细化控制面板和隔离数据展示
+    return await render_template('index.html', 
+                                 bots=bot_status, 
+                                 apis=config['api_configs'], 
+                                 config=current_conf, 
+                                 selected_token=selected_token, 
+                                 all_tokens=config['bot_tokens'], 
+                                 users=users,
+                                 module_defs=MODULE_DEFINITIONS,
+                                 get_token_hash=get_token_hash)
 
 @app.route('/manage_bot', methods=['POST'])
 async def manage_bot():
@@ -62,19 +71,24 @@ async def save_bot_settings():
     
     prompts = [form.get(k).strip() for k in form if k.startswith('system_prompt_') and form.get(k).strip()]
     
-    # 获取模块开关状态
-    enabled_modules = []
-    if form.get('module_chat') == 'on': enabled_modules.append('chat')
-    if form.get('module_rpg') == 'on': enabled_modules.append('rpg')
-    if form.get('module_admin') == 'on': enabled_modules.append('admin')
-    if form.get('module_utility') == 'on': enabled_modules.append('utility')
+    # --- 变更：收集所有被勾选的指令 ---
+    enabled_commands = []
+    # 聊天模块特殊处理
+    if form.get('cmd_chat') == 'on': enabled_commands.append('chat')
+    
+    # 遍历定义，收集 Slash Commands
+    for mod_key, mod_val in MODULE_DEFINITIONS.items():
+        for cmd_name in mod_val['commands'].keys():
+            # 前端 checkbox name 格式: "cmd_{cmd_name}"
+            if form.get(f'cmd_{cmd_name}') == 'on':
+                enabled_commands.append(cmd_name)
 
     new_settings = {
         "system_prompts": prompts,
         "temperature": float(form.get('temperature', 0.7)),
         "knowledge": [],
         "custom_events": [],
-        "enabled_modules": enabled_modules
+        "enabled_commands": enabled_commands # 保存为具体的指令列表
     }
     
     old_conf = config['bot_settings'].get(target_token, config['default_settings']) if target_token != 'default' else config['default_settings']
